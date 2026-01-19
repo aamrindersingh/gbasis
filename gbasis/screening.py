@@ -244,3 +244,57 @@ def compute_primitive_upper_bound(c, alpha, angm, deriv_order):
     )
 
     return np.exp(up_log)
+
+
+def is_n_center_overlap_screened(contractions, tol_screen):
+    r"""Return True if the N-center overlap integral should be screened.
+
+    For N Gaussian centers, the overlap integral has a pre-exponential factor:
+
+    .. math::
+        K = \exp\left(-\frac{1}{\gamma} \sum_{i<j} \alpha_i \alpha_j |A_i - A_j|^2\right)
+
+    where :math:`\gamma = \sum_k \alpha_k` is the total exponent. If K is below the
+    screening tolerance, the integral is negligible and can be set to zero.
+
+    This function uses the minimum exponent from each contraction shell to compute
+    an upper bound on K. If this upper bound is below the tolerance, ALL primitive
+    combinations in this shell combination are screened.
+
+    Parameters
+    ----------
+    contractions : list/tuple of GeneralizedContractionShell
+        Contracted Cartesian Gaussians associated with each index of the overlap.
+        Length of this list determines N (the number of centers).
+    tol_screen : float
+        The tolerance used for screening overlap integrals. If the upper bound on
+        the pre-exponential factor K is below this value, the integral is screened.
+
+    Returns
+    -------
+    is_screened : bool
+        True if the integral should be screened (set to zero), False otherwise.
+
+    """
+    n_centers = len(contractions)
+
+    # get minimum exponent from each shell (conservative upper bound)
+    min_exps = np.array([min(cont.exps) for cont in contractions])
+
+    # get coordinates of each center
+    coords = np.array([cont.coord for cont in contractions])
+
+    # compute total exponent
+    gamma = np.sum(min_exps)
+
+    # compute K factor
+    exponent_sum = 0.0
+    for i in range(n_centers):
+        for j in range(i + 1, n_centers):
+            r_ij_squared = np.sum((coords[i] - coords[j]) ** 2)
+            exponent_sum += min_exps[i] * min_exps[j] * r_ij_squared
+
+    factor_k = np.exp(-exponent_sum / gamma)
+
+    # screen if K is below tolerance
+    return factor_k < tol_screen
